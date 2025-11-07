@@ -1,0 +1,54 @@
+// src/ui/appwindow.slint (Master Node UI)
+
+import { LineEdit, Button, TextEdit } from "std-widgets.slint";
+
+export component AppWindow inherits Window {
+    title: "Rust Distributed Compute Master Node";
+
+    in property <string> connection-status: "Disconnected";
+    in property <string> log-text: "System started. Ready to connect.";
+    in-out property <string> server-ip: "127.0.0.1";
+
+    callback connect-requested(ip_address: string);
+    callback send-test-task();
+
+    VerticalLayout {
+        spacing: 10px;
+        padding: 10px;
+
+        HorizontalLayout {
+            spacing: 10px;
+            Text { text: "Worker IP:"; vertical-alignment: center; }
+            server-ip-input := LineEdit {
+                text: server-ip;
+                width: 200px;
+            }
+            connect_button := Button {
+                text: "Connect/Register Worker";
+                primary: true;
+                clicked => {
+                    root.connect-requested(server-ip-input.text);
+                }
+            }
+            Button {
+                text: "Send Test Task (3GB RAM)";
+                clicked => { root.send-test-task(); }
+            }
+        }
+
+        Text {
+            text: "Status: **{connection-status}**";
+        }
+
+        Text { 
+            text: "Activity Log (GUI CLI):"; 
+        }
+
+        log_area := TextEdit {
+            text: log-text;
+            read-only: true;
+            wrap: word-wrap;
+            height: 300px;
+        }
+    }
+}

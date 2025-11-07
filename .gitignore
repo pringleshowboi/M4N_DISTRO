@@ -1,0 +1,17 @@
+# Rust Cargo Build Directory
+/target/
+
+# Python Virtual Environments
+# Add known names like .venv/ for tools like uv, pdm, or poetry
+.venv/
+venv/
+env/
+
+# Python Artifacts
+*.pyc
+__pycache__/
+
+# Log files, IDE files, etc.
+*.log
+.vscode/
+.idea/

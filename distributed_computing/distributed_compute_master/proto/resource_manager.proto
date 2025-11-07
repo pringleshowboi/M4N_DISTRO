@@ -1,0 +1,44 @@
+// proto/resource_manager.proto
+
+syntax = "proto3";
+
+package compute;
+
+// Defines the available resources a client can provide.
+message Resources {
+    uint32 cpu_cores = 1;
+    uint64 ram_bytes = 2; // e.g., 3GB = 3221225472 bytes
+    uint64 gpu_vram_bytes = 3; 
+    string gpu_model = 4;
+}
+
+// Defines a request for a compute task.
+message TaskRequest {
+    string task_id = 1;
+    Resources required_resources = 2; // Minimum required resources
+    bytes job_data = 3;               // The actual executable or input data
+}
+
+// Defines the response after a task is executed.
+message TaskResult {
+    string task_id = 1;
+    bool success = 2;
+    bytes output_data = 3;
+    string worker_id = 4; // Worker that processed the task
+}
+
+// Simple message for registration acknowledgement and resource return.
+message WorkerRegistrationStatus {
+    bool registered = 1;
+    string message = 2;
+    Resources capacity = 3; // Worker sends its actual capacity back
+}
+
+// The service definition.
+service Worker {
+    // A Worker calls this to register its resources with the Master.
+    rpc RegisterWorker (Resources) returns (WorkerRegistrationStatus);
+    
+    // The Master calls this to send a task to a Worker.
+    rpc ExecuteTask (TaskRequest) returns (TaskResult);
+}
