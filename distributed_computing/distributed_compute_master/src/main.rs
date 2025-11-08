@@ -105,7 +105,7 @@ fn update_gui_weak(ui_weak: &slint::Weak<crate::AppWindow>, log: String, status:
 
 async fn dispatch_task(
     state: Arc<Mutex<AppState>>,
-    ui_weak: slint::Weak<crate::AppWindow>,  // Changed to weak reference
+    ui_weak: slint::Weak<crate::AppWindow>, 
     target_ip: String,
     task_request: TaskRequest,
 ) -> Result<(), tonic::Status> {
@@ -171,7 +171,7 @@ async fn dispatch_task(
 fn run_gui_app(rt: Arc<tokio::runtime::Runtime>) -> Result<(), slint::PlatformError> {
     let ui = AppWindow::new()?;
     let ui_handle = ui.as_weak();
-    let ui_handle2 = ui.as_weak();  // Second weak reference for second callback
+    let ui_handle2 = ui.as_weak(); 
     
     // State shared across threads
     let app_state = Arc::new(Mutex::new(AppState::new()));
@@ -212,21 +212,28 @@ fn run_gui_app(rt: Arc<tokio::runtime::Runtime>) -> Result<(), slint::PlatformEr
             
             match WorkerClient::connect(endpoint.clone()).await {
                 Ok(client) => {
-                    let mut state_guard = state.lock().unwrap();
-                    state_guard.append_log(&format!("Successfully connected to worker at {}", target_address));
-                    state_guard.set_status("Connected");
+                    let log_status;
+                    let connection_status;
+
+                    {
+                        // MutexGuard 1: Connection Success
+                        let mut state_guard = state.lock().unwrap();
+                        state_guard.append_log(&format!("Successfully connected to worker at {}", target_address));
+                        state_guard.set_status("Connected");
+                        
+                        // Add client handle to the pool
+                        state_guard.client_pool.insert(target_address.clone(), WorkerClientHandle {
+                            client: client.clone(),
+                            ip_address: target_address.clone(),
+                        });
+                        
+                        log_status = state_guard.log.clone();
+                        connection_status = state_guard.status.clone();
+                    } // MutexGuard 1 is dropped here.
                     
-                    // Add client handle to the pool
-                    state_guard.client_pool.insert(target_address.clone(), WorkerClientHandle {
-                        client: client.clone(),
-                        ip_address: target_address.clone(),
-                    });
+                    update_gui_inner(ui_weak.clone(), log_status, connection_status);
                     
-                    update_gui_inner(ui_weak.clone(), state_guard.log.clone(), state_guard.status.clone());
-                    
-                    // Clone the client before dropping the guard
                     let mut registration_client = client.clone();
-                    drop(state_guard);
 
                     // --- Registration RPC ---
                     match registration_client.register_worker(compute::Resources {
@@ -236,33 +243,51 @@ fn run_gui_app(rt: Arc<tokio::runtime::Runtime>) -> Result<(), slint::PlatformEr
                         gpu_model: String::new(),
                     }).await {
                         Ok(response) => {
-                            let worker_status = response.into_inner();
-                            let mut state_guard = state.lock().unwrap();
-                            state_guard.append_log(&format!("Worker Status: {}", worker_status.message));
+                            let (log_final, status_final);
                             
-                            // Save Worker Info (Resources) to Registry
-                            if let Some(capacity) = worker_status.capacity {
-                                state_guard.worker_registry.insert(target_address.clone(), WorkerInfo {
-                                    ip_address: target_address.clone(),
-                                    capacity,
-                                });
-                                let worker_count = state_guard.worker_registry.len();
-                                state_guard.append_log(&format!("-> Registered 1 Worker (Total: {})", worker_count));
-                            }
-                            update_gui_inner(ui_weak.clone(), state_guard.log.clone(), state_guard.status.clone());
+                            { // <--- NEW BLOCK to ensure MutexGuard 2 is dropped before any implicit capture
+                                let worker_status = response.into_inner();
+                                let mut state_guard = state.lock().unwrap(); // <-- MutexGuard 2
+                                state_guard.append_log(&format!("Worker Status: {}", worker_status.message));
+                                
+                                // Save Worker Info (Resources) to Registry
+                                if let Some(capacity) = worker_status.capacity {
+                                    state_guard.worker_registry.insert(target_address.clone(), WorkerInfo {
+                                        ip_address: target_address.clone(),
+                                        capacity,
+                                    });
+                                    let worker_count = state_guard.worker_registry.len();
+                                    state_guard.append_log(&format!("-> Registered 1 Worker (Total: {})", worker_count));
+                                }
+                                
+                                log_final = state_guard.log.clone();
+                                status_final = state_guard.status.clone();
+                            } // MutexGuard 2 is dropped here.
+
+                            update_gui_inner(ui_weak.clone(), log_final, status_final);
                         }
                         Err(e) => {
-                            let mut state_guard = state.lock().unwrap();
-                            state_guard.append_log(&format!("Registration failed: {:?}", e));
-                            update_gui_inner(ui_weak.clone(), state_guard.log.clone(), state_guard.status.clone());
+                            let (log_err, status_err);
+                            {
+                                let mut state_guard = state.lock().unwrap();
+                                state_guard.append_log(&format!("Registration failed: {:?}", e));
+                                log_err = state_guard.log.clone();
+                                status_err = state_guard.status.clone();
+                            } // MutexGuard is dropped here.
+                            update_gui_inner(ui_weak.clone(), log_err, status_err);
                         }
                     }
                 }
                 Err(e) => {
-                    let mut state_guard = state.lock().unwrap();
-                    state_guard.append_log(&format!("Connection failed: {:?}", e));
-                    state_guard.set_status("Error");
-                    update_gui_inner(ui_weak.clone(), state_guard.log.clone(), state_guard.status.clone());
+                    let (log_err, status_err);
+                    {
+                        let mut state_guard = state.lock().unwrap();
+                        state_guard.append_log(&format!("Connection failed: {:?}", e));
+                        state_guard.set_status("Error");
+                        log_err = state_guard.log.clone();
+                        status_err = state_guard.status.clone();
+                    } // MutexGuard is dropped here.
+                    update_gui_inner(ui_weak.clone(), log_err, status_err);
                 }
             }
         });
@@ -272,7 +297,7 @@ fn run_gui_app(rt: Arc<tokio::runtime::Runtime>) -> Result<(), slint::PlatformEr
     let state_for_task = Arc::clone(&app_state);
     let rt_for_task = Arc::clone(&rt);
     ui.on_send_test_task(move || {
-        let ui_weak = ui_handle2.clone();  // Use second weak reference
+        let ui_weak = ui_handle2.clone(); 
         let state = Arc::clone(&state_for_task);
         let rt = Arc::clone(&rt_for_task);
 
