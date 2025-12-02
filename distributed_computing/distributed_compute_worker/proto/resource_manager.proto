@@ -1,44 +1,244 @@
-// proto/resource_manager.proto
-
 syntax = "proto3";
 
 package compute;
 
-// Defines the available resources a client can provide.
+// Existing compute messages
 message Resources {
     uint32 cpu_cores = 1;
-    uint64 ram_bytes = 2; // e.g., 3GB = 3221225472 bytes
+    uint64 ram_bytes = 2;
     uint64 gpu_vram_bytes = 3; 
     string gpu_model = 4;
 }
 
-// Defines a request for a compute task.
-message TaskRequest {
-    string task_id = 1;
-    Resources required_resources = 2; // Minimum required resources
-    bytes job_data = 3;               // The actual executable or input data
+enum TaskType {
+    COMPUTE_GENERIC = 0;
+    THREAT_DETECTION = 1;
+    GEOSPATIAL_ANALYSIS = 2;
+    NETWORK_ANALYSIS = 3;
+    RESPONSE_PLANNING = 4;
 }
 
-// Defines the response after a task is executed.
+message TaskRequest {
+    string task_id = 1;
+    int32 task_type = 2;  // Changed from enum to int32
+    Resources required_resources = 3;
+    bytes job_data = 4;
+}
+
 message TaskResult {
     string task_id = 1;
     bool success = 2;
     bytes output_data = 3;
-    string worker_id = 4; // Worker that processed the task
+    string worker_id = 4;
 }
 
-// Simple message for registration acknowledgement and resource return.
 message WorkerRegistrationStatus {
     bool registered = 1;
     string message = 2;
-    Resources capacity = 3; // Worker sends its actual capacity back
+    Resources capacity = 3;
 }
 
-// The service definition.
+message WorkerLoad {
+    string worker_id = 1;
+    double cpu_load_percent = 2;
+    uint64 ram_used_bytes = 3;
+    uint64 gpu_vram_used_bytes = 4;
+    int32 active_tasks = 5;
+}
+
+message ReportStatus {
+    bool accepted = 1;
+    string message = 2;
+}
+
+// Threat Intelligence Types (needed for streaming)
+message GeoLocation {
+    double latitude = 1;
+    double longitude = 2;
+    string address = 3;
+    string zone_id = 4;
+}
+
+message CameraInfo {
+    string camera_id = 1;
+    string worker_id = 2;
+    GeoLocation location = 3;
+    int32 resolution_width = 4;
+    int32 resolution_height = 5;
+    double fps = 6;
+    string status = 7;
+}
+
+message BoundingBox {
+    int32 x = 1;
+    int32 y = 2;
+    int32 width = 3;
+    int32 height = 4;
+}
+
+message ThreatDetection {
+    string detection_id = 1;
+    string camera_id = 2;
+    int64 timestamp = 3;
+    string threat_type = 4;
+    double confidence = 5;
+    int32 severity = 6;  // 0=INFO, 1=LOW, 2=MEDIUM, 3=HIGH, 4=CRITICAL
+    BoundingBox bbox = 7;
+    GeoLocation estimated_location = 8;
+    bytes frame_snapshot = 9;
+    string description = 10;
+}
+
+// Simplified threat intelligence (for now)
+message GeospatialAnalysisRequest {
+    string analysis_id = 1;
+}
+
+message GeospatialAnalysisResult {
+    string analysis_id = 1;
+    repeated ThreatCluster clusters = 2;
+    repeated MovementTrack tracks = 3;
+    repeated HotZone hot_zones = 4;
+    ResponsePlan recommended_response = 5;
+}
+
+message NetworkAnalysisRequest {
+    string analysis_id = 1;
+}
+
+message NetworkAnalysisResult {
+    string analysis_id = 1;
+    repeated ThreatPattern patterns = 2;
+    repeated Anomaly anomalies = 3;
+    ThreatNetwork network = 4;
+    repeated Prediction predictions = 5;
+}
+
+message ThreatCluster {
+    string cluster_id = 1;
+    GeoLocation center = 2;
+    double radius_meters = 3;
+    repeated string detection_ids = 4;
+    int32 max_severity = 5;
+    int32 threat_count = 6;
+}
+
+message MovementTrack {
+    string track_id = 1;
+    string entity_type = 2;
+    repeated GeoLocation path = 3;
+    repeated int64 timestamps = 4;
+    string predicted_destination = 5;
+    double confidence = 6;
+}
+
+message HotZone {
+    string zone_id = 1;
+    GeoLocation center = 2;
+    double radius_meters = 3;
+    int32 incident_count = 4;
+    int32 severity = 5;
+    string zone_type = 6;
+}
+
+message ResponsePlan {
+    string plan_id = 1;
+    int32 threat_level = 2;
+    repeated Action immediate_actions = 3;
+    repeated ResourceAllocation allocations = 4;
+    repeated CameraAdjustment camera_adjustments = 5;
+    repeated Alert alerts = 6;
+    double estimated_response_time_seconds = 7;
+}
+
+message Action {
+    string action_id = 1;
+    string action_type = 2;
+    string target = 3;
+    int32 priority = 4;
+    string description = 5;
+}
+
+message ResourceAllocation {
+    string resource_type = 1;
+    GeoLocation deploy_to = 2;
+    int32 quantity = 3;
+    string reason = 4;
+}
+
+message CameraAdjustment {
+    string camera_id = 1;
+    string adjustment_type = 2;
+    GeoLocation focus_point = 3;
+    int32 priority = 4;
+}
+
+message Alert {
+    string alert_id = 1;
+    int32 severity = 2;
+    repeated string recipients = 3;
+    string channel = 4;
+    string message = 5;
+    GeoLocation location = 6;
+    bool requires_acknowledgment = 7;
+}
+
+message ThreatPattern {
+    string pattern_id = 1;
+    string pattern_type = 2;
+    repeated string detection_ids = 3;
+    double confidence = 4;
+    string description = 5;
+    int32 assessed_risk = 6;
+}
+
+message Anomaly {
+    string anomaly_id = 1;
+    string anomaly_type = 2;
+    repeated string detection_ids = 3;
+    double deviation_score = 4;
+    string description = 5;
+}
+
+message ThreatNetwork {
+    repeated NetworkNode nodes = 1;
+    repeated NetworkEdge edges = 2;
+}
+
+message NetworkNode {
+    string node_id = 1;
+    string node_type = 2;
+    GeoLocation location = 3;
+}
+
+message NetworkEdge {
+    string source_id = 1;
+    string target_id = 2;
+    string relationship = 3;
+    double weight = 4;
+}
+
+message Prediction {
+    string prediction_id = 1;
+    string prediction_type = 2;
+    GeoLocation predicted_location = 3;
+    int64 predicted_time = 4;
+    double confidence = 5;
+    string rationale = 6;
+}
+
+// Services
 service Worker {
-    // A Worker calls this to register its resources with the Master.
     rpc RegisterWorker (Resources) returns (WorkerRegistrationStatus);
-    
-    // The Master calls this to send a task to a Worker.
     rpc ExecuteTask (TaskRequest) returns (TaskResult);
+}
+
+service MasterMonitor {
+    rpc ReportLoad(WorkerLoad) returns (ReportStatus);
+    rpc ReportThreat(ThreatDetection) returns (ReportStatus);
+    rpc RequestGeospatialAnalysis(GeospatialAnalysisRequest) returns (GeospatialAnalysisResult);
+    rpc RequestNetworkAnalysis(NetworkAnalysisRequest) returns (NetworkAnalysisResult);
+    rpc GetResponsePlan(ThreatDetection) returns (ResponsePlan);
+    rpc StreamAllThreats(CameraInfo) returns (stream ThreatDetection);
+    rpc StreamActivePlans(CameraInfo) returns (stream ResponsePlan);
 }

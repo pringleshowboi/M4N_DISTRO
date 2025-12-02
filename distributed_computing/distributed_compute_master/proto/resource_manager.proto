@@ -1,44 +1,345 @@
-// proto/resource_manager.proto
+// proto/resource_manager.proto (EXTENDED VERSION)
+// Original compute + threat intelligence + geospatial analysis
 
 syntax = "proto3";
 
 package compute;
 
-// Defines the available resources a client can provide.
+// ============================================================================
+// ORIGINAL COMPUTE RESOURCES (Keep as-is)
+// ============================================================================
+
 message Resources {
     uint32 cpu_cores = 1;
-    uint64 ram_bytes = 2; // e.g., 3GB = 3221225472 bytes
+    uint64 ram_bytes = 2;
     uint64 gpu_vram_bytes = 3; 
     string gpu_model = 4;
 }
 
-// Defines a request for a compute task.
 message TaskRequest {
     string task_id = 1;
-    Resources required_resources = 2; // Minimum required resources
-    bytes job_data = 3;               // The actual executable or input data
+    Resources required_resources = 2;
+    bytes job_data = 3;
+    TaskType task_type = 4;  // NEW: Identify task type
 }
 
-// Defines the response after a task is executed.
 message TaskResult {
     string task_id = 1;
     bool success = 2;
     bytes output_data = 3;
-    string worker_id = 4; // Worker that processed the task
+    string worker_id = 4;
 }
 
-// Simple message for registration acknowledgement and resource return.
 message WorkerRegistrationStatus {
     bool registered = 1;
     string message = 2;
-    Resources capacity = 3; // Worker sends its actual capacity back
+    Resources capacity = 3;
+    WorkerCapabilities capabilities = 4;  // NEW: What can this worker do?
 }
 
-// The service definition.
-service Worker {
-    // A Worker calls this to register its resources with the Master.
-    rpc RegisterWorker (Resources) returns (WorkerRegistrationStatus);
+message WorkerLoad {
+    string worker_id = 1;
+    double cpu_load_percent = 2;
+    uint64 ram_used_bytes = 3;
+    uint64 gpu_vram_used_bytes = 4;
+    int32 active_tasks = 5;
+}
+
+message ReportStatus {
+    bool accepted = 1;
+    string message = 2;
+}
+
+// ============================================================================
+// NEW: THREAT INTELLIGENCE EXTENSIONS
+// ============================================================================
+
+enum TaskType {
+    COMPUTE_GENERIC = 0;
+    THREAT_DETECTION = 1;
+    GEOSPATIAL_ANALYSIS = 2;
+    NETWORK_ANALYSIS = 3;
+    RESPONSE_PLANNING = 4;
+}
+
+message WorkerCapabilities {
+    bool has_camera = 1;
+    bool has_gpu_inference = 2;
+    bool has_geospatial = 3;
+    bool has_network_tools = 4;
+    GeoLocation location = 5;  // Worker's physical location
+}
+
+message GeoLocation {
+    double latitude = 1;
+    double longitude = 2;
+    string address = 3;
+    string zone_id = 4;  // Security zone identifier
+}
+
+// Camera and Detection
+message CameraInfo {
+    string camera_id = 1;
+    string worker_id = 2;
+    GeoLocation location = 3;
+    int32 resolution_width = 4;
+    int32 resolution_height = 5;
+    double fps = 6;
+    string status = 7;
+    double field_of_view = 8;  // degrees
+    double orientation = 9;  // compass heading
+}
+
+message ThreatDetection {
+    string detection_id = 1;
+    string camera_id = 2;
+    int64 timestamp = 3;
     
-    // The Master calls this to send a task to a Worker.
+    // Detection details
+    string threat_type = 4;  // "person", "weapon", "vehicle", "fire", "intrusion"
+    double confidence = 5;
+    ThreatLevel severity = 6;
+    
+    // Spatial data
+    BoundingBox bbox = 7;
+    GeoLocation estimated_location = 8;
+    
+    // Evidence
+    bytes frame_snapshot = 9;
+    string description = 10;
+    
+    // Context
+    repeated string related_detections = 11;  // IDs of related threats
+    NetworkContext network_context = 12;
+}
+
+enum ThreatLevel {
+    INFO = 0;
+    LOW = 1;
+    MEDIUM = 2;
+    HIGH = 3;
+    CRITICAL = 4;
+}
+
+message BoundingBox {
+    int32 x = 1;
+    int32 y = 2;
+    int32 width = 3;
+    int32 height = 4;
+    double distance_meters = 5;  // Estimated distance from camera
+}
+
+// Network and Pattern Analysis
+message NetworkContext {
+    repeated string connected_cameras = 1;  // Other cameras seeing related activity
+    string movement_pattern = 2;  // "stationary", "walking", "running", "vehicle"
+    string direction = 3;  // Movement direction (compass heading)
+    double velocity_mps = 4;  // meters per second
+    int32 detection_count = 5;  // How many times seen
+    int64 first_seen = 6;
+    int64 last_seen = 7;
+}
+
+// Geospatial Analysis Request
+message GeospatialAnalysisRequest {
+    string analysis_id = 1;
+    repeated ThreatDetection threats = 2;
+    repeated CameraInfo cameras = 3;
+    GeoLocation center_point = 4;
+    double radius_meters = 5;
+}
+
+message GeospatialAnalysisResult {
+    string analysis_id = 1;
+    
+    // Threat clustering
+    repeated ThreatCluster clusters = 2;
+    
+    // Movement tracking
+    repeated MovementTrack tracks = 3;
+    
+    // Hot zones
+    repeated HotZone hot_zones = 4;
+    
+    // Recommendations
+    ResponsePlan recommended_response = 5;
+}
+
+message ThreatCluster {
+    string cluster_id = 1;
+    GeoLocation center = 2;
+    double radius_meters = 3;
+    repeated string detection_ids = 4;
+    ThreatLevel max_severity = 5;
+    int32 threat_count = 6;
+}
+
+message MovementTrack {
+    string track_id = 1;
+    string entity_type = 2;  // "person", "vehicle"
+    repeated GeoLocation path = 3;
+    repeated int64 timestamps = 4;
+    string predicted_destination = 5;
+    double confidence = 6;
+}
+
+message HotZone {
+    string zone_id = 1;
+    GeoLocation center = 2;
+    double radius_meters = 3;
+    int32 incident_count = 4;
+    ThreatLevel severity = 5;
+    string zone_type = 6;  // "entry_point", "restricted", "public", "perimeter"
+}
+
+// Response Planning
+message ResponsePlan {
+    string plan_id = 1;
+    ThreatLevel threat_level = 2;
+    
+    // Immediate actions
+    repeated Action immediate_actions = 3;
+    
+    // Resource allocation
+    repeated ResourceAllocation allocations = 4;
+    
+    // Camera coverage optimization
+    repeated CameraAdjustment camera_adjustments = 5;
+    
+    // Alert routing
+    repeated Alert alerts = 6;
+    
+    // Estimated response time
+    double estimated_response_time_seconds = 7;
+}
+
+message Action {
+    string action_id = 1;
+    string action_type = 2;  // "alert", "lockdown", "dispatch", "track", "investigate"
+    string target = 3;
+    int32 priority = 4;
+    string description = 5;
+    map<string, string> parameters = 6;
+}
+
+message ResourceAllocation {
+    string resource_type = 1;  // "security_personnel", "drone", "vehicle"
+    GeoLocation deploy_to = 2;
+    int32 quantity = 3;
+    string reason = 4;
+}
+
+message CameraAdjustment {
+    string camera_id = 1;
+    string adjustment_type = 2;  // "focus", "zoom", "pan", "tilt"
+    GeoLocation focus_point = 3;
+    int32 priority = 4;
+}
+
+message Alert {
+    string alert_id = 1;
+    ThreatLevel severity = 2;
+    repeated string recipients = 3;  // Who to notify
+    string channel = 4;  // "email", "sms", "radio", "app"
+    string message = 5;
+    GeoLocation location = 6;
+    bool requires_acknowledgment = 7;
+}
+
+// Network Analysis Request
+message NetworkAnalysisRequest {
+    string analysis_id = 1;
+    repeated ThreatDetection recent_threats = 2;
+    int64 time_window_ms = 3;
+    repeated string camera_ids = 4;
+}
+
+message NetworkAnalysisResult {
+    string analysis_id = 1;
+    
+    // Pattern detection
+    repeated ThreatPattern patterns = 2;
+    
+    // Anomalies
+    repeated Anomaly anomalies = 3;
+    
+    // Network graph
+    ThreatNetwork network = 4;
+    
+    // Predictions
+    repeated Prediction predictions = 5;
+}
+
+message ThreatPattern {
+    string pattern_id = 1;
+    string pattern_type = 2;  // "coordinated", "routine", "suspicious", "benign"
+    repeated string detection_ids = 3;
+    double confidence = 4;
+    string description = 5;
+    ThreatLevel assessed_risk = 6;
+}
+
+message Anomaly {
+    string anomaly_id = 1;
+    string anomaly_type = 2;  // "unusual_time", "unusual_location", "unusual_behavior"
+    repeated string detection_ids = 3;
+    double deviation_score = 4;
+    string description = 5;
+}
+
+message ThreatNetwork {
+    repeated NetworkNode nodes = 1;
+    repeated NetworkEdge edges = 2;
+}
+
+message NetworkNode {
+    string node_id = 1;
+    string node_type = 2;  // "threat", "camera", "zone"
+    GeoLocation location = 3;
+    map<string, string> properties = 4;
+}
+
+message NetworkEdge {
+    string source_id = 1;
+    string target_id = 2;
+    string relationship = 3;  // "detected_by", "connected_to", "moved_to"
+    double weight = 4;
+}
+
+message Prediction {
+    string prediction_id = 1;
+    string prediction_type = 2;  // "next_location", "escalation", "duration"
+    GeoLocation predicted_location = 3;
+    int64 predicted_time = 4;
+    double confidence = 5;
+    string rationale = 6;
+}
+
+// ============================================================================
+// EXTENDED SERVICES
+// ============================================================================
+
+service Worker {
+    // Original
+    rpc RegisterWorker (Resources) returns (WorkerRegistrationStatus);
     rpc ExecuteTask (TaskRequest) returns (TaskResult);
+    
+    // NEW: Threat-specific capabilities
+    rpc RegisterCamera (CameraInfo) returns (ReportStatus);
+    rpc StreamDetections (CameraInfo) returns (stream ThreatDetection);
+}
+
+service MasterMonitor {
+    // Original
+    rpc ReportLoad(WorkerLoad) returns (ReportStatus);
+    
+    // NEW: Threat intelligence
+    rpc ReportThreat(ThreatDetection) returns (ReportStatus);
+    rpc RequestGeospatialAnalysis(GeospatialAnalysisRequest) returns (GeospatialAnalysisResult);
+    rpc RequestNetworkAnalysis(NetworkAnalysisRequest) returns (NetworkAnalysisResult);
+    rpc GetResponsePlan(ThreatDetection) returns (ResponsePlan);
+    
+    // NEW: Real-time streaming
+    rpc StreamAllThreats(CameraInfo) returns (stream ThreatDetection);
+    rpc StreamActivePlans(CameraInfo) returns (stream ResponsePlan);
 }

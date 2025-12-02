@@ -1,4 +1,5 @@
 // src/main.rs (Worker Node: gRPC Server)
+mod camera_worker;
 
 use tonic::{transport::Server, Request, Response, Status};
 use uuid::Uuid;
@@ -92,22 +93,41 @@ impl Worker for WorkerService {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = "0.0.0.0:50051".parse()?;
-    
-    let worker_id = format!("{}", Uuid::new_v4());
-    let worker_capacity = WorkerService::get_system_resources();
-    
-    let worker_service = WorkerService::new(&worker_id, worker_capacity.clone());
-    
-    println!("Worker Node ID: {}", worker_id);
-    println!("Capacity: {:?}", worker_capacity);
-    println!("Listening for Master Node connection at {}", addr);
-    
-    Server::builder()
-        .max_frame_size(Some(4 * 1024 * 1024))
-        .add_service(WorkerServer::new(worker_service))
-        .serve(addr)
-        .await?;
+    // Check for camera mode
+    let args: Vec<String> = std::env::args().collect();
+    let mode = args.get(1).map(|s| s.as_str()).unwrap_or("compute");
 
-    Ok(())
+    match mode {
+        "compute" => {
+            // YOUR EXISTING WORKER CODE (unchanged)
+            let addr = "0.0.0.0:50052".parse()?;
+            
+            let worker_id = format!("{}", Uuid::new_v4());
+            let worker_capacity = WorkerService::get_system_resources();
+            
+            let worker_service = WorkerService::new(&worker_id, worker_capacity.clone());
+            
+            println!("Worker Node ID: {}", worker_id);
+            println!("Capacity: {:?}", worker_capacity);
+            println!("Listening for Master Node connection at {}", addr);
+            
+            Server::builder()
+                .max_frame_size(Some(4 * 1024 * 1024))
+                .add_service(WorkerServer::new(worker_service))
+                .serve(addr)
+                .await?;
+                
+            Ok(())
+        }
+        "camera" => {
+            // NEW: Camera mode
+            camera_worker::start_camera_mode().await
+        }
+        _ => {
+            eprintln!("Usage: worker [compute|camera]");
+            eprintln!("  compute - Run compute worker (default)");
+            eprintln!("  camera  - Run camera threat detection worker");
+            std::process::exit(1);
+        }
+    }
 }

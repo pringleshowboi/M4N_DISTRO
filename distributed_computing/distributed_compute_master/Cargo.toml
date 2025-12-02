@@ -4,17 +4,30 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# UI and Core Async
 slint = "1.3" 
 tokio = { version = "1", features = ["full"] }
-uuid = { version = "1.7", features = ["v4"] } 
-serde = { version = "1.0", features = ["derive"] }
-tower = "0.5.2" 
 anyhow = "1.0" 
-tonic = { version = "0.14.2", features = ["transport", "codegen"] }
+tokio-stream = "0.1"
+image = "0.25.9"
+imageproc = "0.25"
+
+# gRPC Client and Server (for MasterMonitor)
+tonic = { version = "0.14.2", features = ["transport"] } # Removed 'codegen' as it's in build-dependencies
 prost = "0.14.1"
-tonic-prost = "0.14.2"
+tower = "0.5.2" 
+
+# System Monitoring (NEW)
+sysinfo = "0.37.2"
+chrono = "0.4"
+uuid = { version = "1.19.0", features = ["v4", "serde"] }      # Used for Master's local resource monitoring
+
+# The following were not strictly needed or are part of `tonic` dependencies
+serde = { version = "1.0", features = ["derive"] }
+tonic-prost = "0.14.2" 
 
 [build-dependencies]
+# Required for generating gRPC Rust code from .proto files
 tonic-build = "0.14.2"
-tonic-prost-build = "0.14.2"
+tonic-prost-build = "0.14.2" # You can usually just rely on tonic-build, but keeping it if you need specific features
 slint-build = "1.3"
